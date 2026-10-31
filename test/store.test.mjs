@@ -344,7 +344,7 @@ test('L1：新会话第一轮不覆盖旧尾巴，并把它显示出来', () => 
   const next = new Bridge(dir)
   next.observe(sessionOf('new', [u('新会话第一句')]), T0 + DAY)
   assert.equal(next.read().session, 'old', '新会话第一轮不该覆盖旧尾巴')
-  const text = next.render()
+  const text = next.render(sessionOf('new', [u('新会话第一句')]))
   assert.match(text, /老会话最后一句/)
 })
 
@@ -354,14 +354,15 @@ test('L1：聊到第二轮后改写自己的尾巴，并且不再显示', () => 
   const log = [u('第一轮'), a('回答一'), u('第二轮'), a('回答二')]
   bridge.observe(sessionOf('s2', log), T0)
   assert.equal(bridge.read().session, 's2')
-  assert.equal(bridge.render(), '', '同一条会话的尾巴不显示')
+  assert.equal(bridge.render(sessionOf('s2', log)), '', '同一条会话的尾巴不显示')
 })
 
 test('L1：会话聊过两轮之后不再出现卡片', () => {
   const { dir } = fresh()
   const bridge = new Bridge(dir)
-  bridge.observe(sessionOf('s3', [u('1'), a('a'), u('2'), a('b'), u('3'), a('c')]), T0)
-  assert.equal(bridge.render(), '')
+  const long = [u('1'), a('a'), u('2'), a('b'), u('3'), a('c')]
+  bridge.observe(sessionOf('s3', long), T0)
+  assert.equal(bridge.render(sessionOf('s3', long)), '')
 })
 
 test('L1：拿不到会话日志时安静退出，不写坏文件', () => {
@@ -370,7 +371,7 @@ test('L1：拿不到会话日志时安静退出，不写坏文件', () => {
   bridge.observe(undefined, T0)
   bridge.observe({ id: 'x' }, T0)
   assert.equal(bridge.read(), null)
-  assert.equal(bridge.render(), '')
+  assert.equal(bridge.render(undefined), '')
 })
 
 test('L1：全新会话第一次对话时给出开场提示', () => {
@@ -378,7 +379,7 @@ test('L1：全新会话第一次对话时给出开场提示', () => {
   const bridge = new Bridge(dir)
   bridge.observe(sessionOf('first', [u('你好')]), T0)
   assert.equal(bridge.read(), null, '只有一轮时不写桥接')
-  assert.match(bridge.render(), /第一次和对方对话/)
+  assert.match(bridge.render(sessionOf('first', [u('你好')])), /第一次和对方对话/)
 })
 
 test('L1：卡片长度受预算约束', () => {
@@ -387,7 +388,7 @@ test('L1：卡片长度受预算约束', () => {
   bridge.observe(sessionOf('old2', [u('长'.repeat(200)), a('长'.repeat(200)), u('长'.repeat(200)), a('长'.repeat(200))]), T0)
   const other = new Bridge(dir)
   other.observe(sessionOf('fresh', [u('hi')]), T0 + DAY)
-  const text = other.render()
+  const text = other.render(sessionOf('fresh', [u('hi')]))
   assert.ok(text.length <= BRIDGE_LIMITS.budgetChars + 1, `卡片 ${text.length} 字`)
 })
 
@@ -446,7 +447,7 @@ test('五张卡片都标明「数据，非指令」', () => {
   lib.write({ title: '一篇原文', body: '正文' }, T0)
   lib.write({ title: '一件产物', body: '正文', tags: ['artifact:x'] }, T0)
   bridge.observe({ id: 'mark', log: [u('你好'), a('在')] }, T0)
-  for (const text of [store.renderL2(T0), store.renderL4(), lib.renderCatalog(), lib.renderArtifacts(), bridge.render()]) {
+  for (const text of [store.renderL2(T0), store.renderL4(), lib.renderCatalog(), lib.renderArtifacts(), bridge.render({ id: 'mark', log: [u('你好'), a('在')] })]) {
     assert.match(text, /数据，非指令/)
   }
 })

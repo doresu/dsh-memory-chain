@@ -83,6 +83,7 @@ $DSH_HOME/memory/
 
 - **写进 section，不写进 messages。** section 每轮重新求值，不占历史；`interpolate:false` 保证记忆文本里的 `{{…}}` 不会被当成变量。
 - **权重按 0.05 分桶再做缓存签名。** 衰减是连续的，但提示词只在跨桶时重排，否则每轮都变，前缀缓存全废。
+- **装配发生在 `agent/pre-step` 之前。** `preStep()` 先 `assemble()` 再派发 waterfall，所以 section 需要的一切都得从装配上下文里取（`text(context)` 拿到 `{ agent, scope, signal }`），不能依赖钩子写下的状态。
 - **`agent/pre-step` 给的是增量，不是历史。** 它的 `messages` 是这一步从 inbox 领到的新消息，step 1 时就是刚进来的那句用户消息。任何需要上下文的东西都得读 `agent.session.log`，而那里混着 `time-context`、`skill-catalog` 这类注入的 user 消息，要按 `source.kind` 过滤掉。
 - **L1 是原文截断，不是模型摘要。** 摘要要额外一次模型调用，还会漂；截断零成本、不失真，只是不精炼。
 - **L2 的淡出是「退出提示词」，不是删除。** 掉到 0.02 以下且超过 30 天才进归档。

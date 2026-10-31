@@ -83,6 +83,7 @@ $DSH_HOME/memory/
 
 - **Sections, not messages.** Sections are re-evaluated every assembly and cost no history. `interpolate: false` keeps `{{…}}` inside memory text from being read as template variables.
 - **Weights are bucketed to 0.05 before hashing.** Decay is continuous, but the prompt only reorders when a value crosses a bucket — otherwise the prefix cache is invalidated every turn.
+- **Assembly happens before `agent/pre-step`.** `preStep()` calls `assemble()` first and only then dispatches the waterfall, so anything a section needs must come from the assembly context (`text(context)` receives `{ agent, scope, signal }`) — not from state written by the hook.
 - **`agent/pre-step` carries a delta, not history.** Its `messages` are the inbox claim for that step — at step 1 that is just the incoming user message. Anything that needs conversation context must read `agent.session.log`, whose events also include injected user messages (`time-context`, `skill-catalog`, …) that must be filtered out by `source.kind`.
 - **L1 is truncation, not summarisation.** A summary would cost an extra model call and would drift; truncation is free, faithful, and merely unpolished.
 - **L2 fades out of the prompt; it is not deleted.** Entries drop out below 0.1 and are archived below 0.02 after 30 days.
