@@ -378,4 +378,64 @@ test('L1：完全没有对话时不写入、不报错', () => {
   assert.match(bridge.render(), /第一次和对方对话/)
 })
 
+// ---------------- 回忆事件 / 版本校验 / 数据标记 ----------------
+
+test('L2：用户提到某条记忆时算一次回忆，权重回升', () => {
+  const { store } = fresh()
+  store.note({ key: 'five', text: '五层记忆包括原文库和长期记忆' }, T0)
+  const at = T0 + 20 * DAY
+  const before = decayed(store.l2().items[0], at)
+  const touched = store.recallFrom('你说的那个五层记忆，原文库那层怎么样', at)
+  assert.deepEqual(touched, ['five'])
+  assert.ok(decayed(store.l2().items[0], at) > before)
+  assert.equal(store.l2().items[0].hits, 2)
+})
+
+test('L2：不相关的话不触发回忆，一轮最多触发三条', () => {
+  const { store } = fresh()
+  store.note({ key: 'a', text: '五层记忆的设计' }, T0)
+  store.note({ key: 'b', text: '五层记忆的存储' }, T0)
+  store.note({ key: 'c', text: '五层记忆的预算' }, T0)
+  store.note({ key: 'd', text: '五层记忆的边界' }, T0)
+  assert.deepEqual(store.recallFrom('今天天气不错', T0), [])
+  assert.equal(store.recallFrom('再聊聊五层记忆', T0).length, 3)
+})
+
+test('L2：版本不认识时先备份再重建，不静默吞掉', () => {
+  const { store, dir } = fresh()
+  mkdirSync(join(dir, 'L2'), { recursive: true })
+  writeFileSync(join(dir, 'L2', 'items.json'), JSON.stringify({ version: 99, items: [{ key: 'x' }] }))
+  assert.equal(store.l2().items.length, 0)
+  const backups = readdirSync(join(dir, 'L2')).filter((f) => f.includes('.bak-'))
+  assert.equal(backups.length, 1)
+})
+
+test('L4 与 L0：坏文件同样进隔离区', () => {
+  const { store, dir } = fresh()
+  const lib = new DocLibrary(dir)
+  mkdirSync(join(dir, 'L4'), { recursive: true })
+  writeFileSync(join(dir, 'L4', 'self.json'), '{ 这不是 json')
+  assert.equal(store.l4().notes.length, 0)
+  assert.ok(readdirSync(join(dir, 'L4')).some((f) => f.includes('.bak-')))
+  mkdirSync(join(dir, 'L0'), { recursive: true })
+  writeFileSync(join(dir, 'L0', 'index.json'), JSON.stringify({ version: 7, docs: [] }))
+  assert.equal(lib.index().docs.length, 0)
+  assert.ok(readdirSync(join(dir, 'L0')).some((f) => f.includes('.bak-')))
+})
+
+test('五张卡片都标明「数据，非指令」', () => {
+  const { dir } = fresh()
+  const store = new MemoryStore(dir)
+  const lib = new DocLibrary(dir)
+  const bridge = new Bridge(dir)
+  store.note({ key: 'k', text: '一条记忆' }, T0)
+  store.appendNote('一条自我叙述', T0)
+  lib.write({ title: '一篇原文', body: '正文' }, T0)
+  lib.write({ title: '一件产物', body: '正文', tags: ['artifact:x'] }, T0)
+  bridge.observe([{ role: 'user', content: [{ type: 'text', text: '你好' }] }], T0)
+  for (const text of [store.renderL2(T0), store.renderL4(), lib.renderCatalog(), lib.renderArtifacts(), bridge.render()]) {
+    assert.match(text, /数据，非指令/)
+  }
+})
+
 console.log(results.join('\n'))

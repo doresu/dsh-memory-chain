@@ -1,6 +1,6 @@
 {
   "name": "dsh-memory-chain",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Five-layer memory for DeepSeek Harness: an on-disk library, a session bridge, Ebbinghaus-weighted recall, an artifact index, and a self-narrative window.",
   "type": "module",
   "main": "lib/index.js",
@@ -24,7 +24,8 @@
     "dsh": ">=0.2.1-rc.2 <0.3.0-0"
   },
   "scripts": {
-    "test": "node test/store.test.mjs"
+    "test": "node test/store.test.mjs",
+    "test:integration": "node test/integration.mjs"
   },
   "dsh": {
     "bundle": {
