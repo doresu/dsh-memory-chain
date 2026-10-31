@@ -1,0 +1,13 @@
+# 安装方式一（推荐）：作为包安装
+#   dsh plugin --profile web add /path/to/dsh-memory-chain
+# 然后把这一段加到 ~/.dsh/profiles/web/cordis.patch.yml 末尾。
+# name 是包名，由 profile 的 node_modules 解析，换机器不用改。
+- insert:
+    - id: memory-chain
+      name: dsh-memory-chain
+
+# 安装方式二：手动 clone，按绝对路径加载（路径换成你自己的）。
+# 注意 --patch 覆盖层不支持 !!js 标签，只能写死路径。
+# - insert:
+#     - id: memory-chain
+#       name: file:///home/you/.dsh/plugins/memory-chain/lib/index.js

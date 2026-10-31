@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+*.log
+
+# 记忆数据永远不进仓库
+memory/
+*.tmp

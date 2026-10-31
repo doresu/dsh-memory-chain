@@ -1,0 +1,4 @@
+# 作为包安装时，dsh 从包的这一层读补丁；name 用包名即可，由 profile 的 node_modules 解析。
+- insert:
+    - id: memory-chain
+      name: dsh-memory-chain
