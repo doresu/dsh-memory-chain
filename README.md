@@ -11,7 +11,7 @@ English | [中文说明](README.zh.md)
 | Layer | What is stored | Cost per request |
 |---|---|---|
 | **L0 Library** | Bodies on disk in `L0/docs/<id>.md`, index in `L0/index.json` | Titles + ids of the 6 newest, ≤420 chars |
-| **L1 Bridge** | The last 4 messages of the previous conversation (90 chars each) | ≤320 chars, and only in the first turns of a new session |
+| **L1 Bridge** | The last 4 messages of the previous session, read from the session event log | ≤320 chars, and only in the first turns of a new session |
 | **L2 Recall** | Ebbinghaus-weighted entries | Top 12 by weight, ≤1100 chars |
 | **L3 Artifacts** | Documents tagged `artifact:*` | 5 newest, ≤320 chars, owner switch |
 | **L4 Self-note** | What the model writes about itself, rolling window | 24 entries / 3600 chars |
@@ -83,6 +83,7 @@ $DSH_HOME/memory/
 
 - **Sections, not messages.** Sections are re-evaluated every assembly and cost no history. `interpolate: false` keeps `{{…}}` inside memory text from being read as template variables.
 - **Weights are bucketed to 0.05 before hashing.** Decay is continuous, but the prompt only reorders when a value crosses a bucket — otherwise the prefix cache is invalidated every turn.
+- **`agent/pre-step` carries a delta, not history.** Its `messages` are the inbox claim for that step — at step 1 that is just the incoming user message. Anything that needs conversation context must read `agent.session.log`, whose events also include injected user messages (`time-context`, `skill-catalog`, …) that must be filtered out by `source.kind`.
 - **L1 is truncation, not summarisation.** A summary would cost an extra model call and would drift; truncation is free, faithful, and merely unpolished.
 - **L2 fades out of the prompt; it is not deleted.** Entries drop out below 0.1 and are archived below 0.02 after 30 days.
 - **Recall is a lexical event, not a judgement call.** When the user's message shares a 4-character run with an entry, that entry counts as recalled and gets a small boost (+0.06 strength, ×1.05 half-life, at most 3 per turn). Without this, every entry lives on `hits=1` and fades in two weeks.

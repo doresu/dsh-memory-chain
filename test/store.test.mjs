@@ -312,70 +312,83 @@ test('L3：产物卡片有预算上限', () => {
 
 // ---------------- L1 会话桥接 ----------------
 
-const msg = (role, text) => ({ role, content: [{ type: 'text', text }] })
+const u = (text) => ({ type: 'user/message', data: { role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] } })
+const a = (text) => ({
+  type: 'assistant/message',
+  data: { message: { role: 'assistant', content: [{ type: 'reasoning', text: '内心戏不算对话' }, { type: 'text', text }] } },
+})
+const sessionOf = (id, entries) => ({ id, log: entries })
 
-test('L1：新会话历史短，显示上次的尾巴', () => {
-  const { dir } = fresh()
-  const bridge = new Bridge(dir)
-  bridge.observe([msg('user', '先做 L2 和 L4'), msg('assistant', '好，我写插件'), msg('user', '重启好了'), msg('assistant', '记忆已在提示词里')], T0)
-  const text = bridge.render()
-  assert.match(text, /会话桥接/)
-  assert.match(text, /你：重启好了/)
-  assert.match(text, /我：记忆已在提示词里/)
-  assert.ok(text.length <= BRIDGE_LIMITS.budgetChars + 1)
+test('L1：从会话事件日志取尾巴，reasoning 不算对话', () => {
+  const tail = Bridge.tail(sessionOf('s1', [u('先做 L2'), a('好'), u('再补 L1'), a('写完'), u('重启好了'), a('生效了')]))
+  assert.deepEqual(tail.map((l) => l.role), ['user', 'assistant', 'user', 'assistant'])
+  assert.equal(tail.at(-1).text, '生效了')
+  assert.ok(tail.every((l) => l.text.length <= BRIDGE_LIMITS.lineChars))
 })
 
-test('L1：历史变长后自动隐藏，不和眼前历史重复', () => {
+test('L1：注入的运行时上下文不算对话', () => {
+  const injected = (kind, text) => ({ type: 'user/message', data: { role: 'user', source: { kind }, content: [{ type: 'text', text }] } })
+  const tail = Bridge.tail(
+    sessionOf('s9', [u('真说的话'), injected('time-context', '当前时间 00:45'), a('真回答'), injected('skill-catalog', '技能清单')]),
+  )
+  assert.deepEqual(tail.map((l) => l.text), ['真说的话', '真回答'])
+})
+
+test('L1：新会话第一轮不覆盖旧尾巴，并把它显示出来', () => {
   const { dir } = fresh()
   const bridge = new Bridge(dir)
-  const short = [msg('user', 'a'), msg('assistant', 'b')]
-  bridge.observe(short, T0)
-  assert.match(bridge.render(), /会话桥接/)
-  const long = Array.from({ length: BRIDGE_LIMITS.freshHistory + 2 }, (_, i) => msg(i % 2 === 0 ? 'user' : 'assistant', `第 ${i} 条`))
-  bridge.observe(long, T0 + 1000)
+  bridge.observe(sessionOf('old', [u('老会话第一句'), a('老会话回答'), u('老会话最后一句'), a('最后回答')]), T0)
+  const saved = bridge.read()
+  assert.equal(saved.session, 'old')
+
+  const next = new Bridge(dir)
+  next.observe(sessionOf('new', [u('新会话第一句')]), T0 + DAY)
+  assert.equal(next.read().session, 'old', '新会话第一轮不该覆盖旧尾巴')
+  const text = next.render()
+  assert.match(text, /老会话最后一句/)
+})
+
+test('L1：聊到第二轮后改写自己的尾巴，并且不再显示', () => {
+  const { dir } = fresh()
+  const bridge = new Bridge(dir)
+  const log = [u('第一轮'), a('回答一'), u('第二轮'), a('回答二')]
+  bridge.observe(sessionOf('s2', log), T0)
+  assert.equal(bridge.read().session, 's2')
+  assert.equal(bridge.render(), '', '同一条会话的尾巴不显示')
+})
+
+test('L1：会话聊过两轮之后不再出现卡片', () => {
+  const { dir } = fresh()
+  const bridge = new Bridge(dir)
+  bridge.observe(sessionOf('s3', [u('1'), a('a'), u('2'), a('b'), u('3'), a('c')]), T0)
   assert.equal(bridge.render(), '')
 })
 
-test('L1：只留最后 4 条，每条截断到 90 字', () => {
+test('L1：拿不到会话日志时安静退出，不写坏文件', () => {
   const { dir } = fresh()
   const bridge = new Bridge(dir)
-  const long = '很长的内容'.repeat(60)
-  bridge.observe([msg('user', '一'), msg('assistant', '二'), msg('user', '三'), msg('assistant', '四'), msg('user', long), msg('assistant', '六')], T0)
-  const saved = bridge.read()
-  assert.equal(saved.lines.length, BRIDGE_LIMITS.tailMessages)
-  assert.ok(saved.lines.every((line) => line.text.length <= BRIDGE_LIMITS.lineChars))
-  assert.match(saved.lines.at(-1).text, /六/)
-})
-
-test('L1：跳过注入的运行时上下文与非文本块', () => {
-  const { dir } = fresh()
-  const bridge = new Bridge(dir)
-  bridge.observe([
-    { role: 'user', content: [{ type: 'text', text: '' }] },
-    { role: 'user', content: [{ type: 'image', data: 'x' }] },
-    msg('user', '真正的对话'),
-  ], T0)
-  const saved = bridge.read()
-  assert.equal(saved.lines.length, 1)
-  assert.equal(saved.lines[0].text, '真正的对话')
-})
-
-test('L1：尾巴没变就不重写文件', () => {
-  const { dir } = fresh()
-  const bridge = new Bridge(dir)
-  const history = [msg('user', '同一句'), msg('assistant', '同样的回复')]
-  bridge.observe(history, T0)
-  const first = bridge.read()
-  bridge.observe(history, T0 + 60_000)
-  assert.equal(bridge.read().at, first.at)
-})
-
-test('L1：完全没有对话时不写入、不报错', () => {
-  const { dir } = fresh()
-  const bridge = new Bridge(dir)
-  bridge.observe([], T0)
+  bridge.observe(undefined, T0)
+  bridge.observe({ id: 'x' }, T0)
   assert.equal(bridge.read(), null)
+  assert.equal(bridge.render(), '')
+})
+
+test('L1：全新会话第一次对话时给出开场提示', () => {
+  const { dir } = fresh()
+  const bridge = new Bridge(dir)
+  bridge.observe(sessionOf('first', [u('你好')]), T0)
+  assert.equal(bridge.read(), null, '只有一轮时不写桥接')
   assert.match(bridge.render(), /第一次和对方对话/)
+})
+
+test('L1：卡片长度受预算约束', () => {
+  const { dir } = fresh()
+  const bridge = new Bridge(dir)
+  bridge.observe(sessionOf('old2', [u('长'.repeat(200)), a('长'.repeat(200)), u('长'.repeat(200)), a('长'.repeat(200))]), T0)
+  const other = new Bridge(dir)
+  other.observe(sessionOf('fresh', [u('hi')]), T0 + DAY)
+  const text = other.render()
+  assert.ok(text.length <= BRIDGE_LIMITS.budgetChars + 1, `卡片 ${text.length} 字`)
 })
 
 // ---------------- 回忆事件 / 版本校验 / 数据标记 ----------------
@@ -432,7 +445,7 @@ test('五张卡片都标明「数据，非指令」', () => {
   store.appendNote('一条自我叙述', T0)
   lib.write({ title: '一篇原文', body: '正文' }, T0)
   lib.write({ title: '一件产物', body: '正文', tags: ['artifact:x'] }, T0)
-  bridge.observe([{ role: 'user', content: [{ type: 'text', text: '你好' }] }], T0)
+  bridge.observe({ id: 'mark', log: [u('你好'), a('在')] }, T0)
   for (const text of [store.renderL2(T0), store.renderL4(), lib.renderCatalog(), lib.renderArtifacts(), bridge.render()]) {
     assert.match(text, /数据，非指令/)
   }
