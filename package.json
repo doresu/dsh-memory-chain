@@ -1,6 +1,6 @@
 {
   "name": "dsh-memory-chain",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Five-layer memory for DeepSeek Harness: an on-disk library, a session bridge, Ebbinghaus-weighted recall, an artifact index, and a self-narrative window.",
   "type": "module",
   "main": "lib/index.js",
@@ -14,6 +14,7 @@
   ],
   "files": [
     "lib",
+    "scripts",
     "examples",
     "cordis.patch.yml",
     "README.md",

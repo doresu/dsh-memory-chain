@@ -438,4 +438,37 @@ test('五张卡片都标明「数据，非指令」', () => {
   }
 })
 
+// ---------------- 漏检日志 ----------------
+
+test('L0：空结果记一条，空查询不记', () => {
+  const { dir } = fresh()
+  const lib = new DocLibrary(dir)
+  lib.logMiss('遗忘曲线', 'artifact', T0)
+  lib.logMiss('   ', '', T0)
+  lib.logMiss('', '', T0)
+  const lines = readFileSync(join(dir, 'L0', 'misses.jsonl'), 'utf8').trim().split('\n')
+  assert.equal(lines.length, 1)
+  const record = JSON.parse(lines[0])
+  assert.equal(record.query, '遗忘曲线')
+  assert.equal(record.tag, 'artifact')
+  assert.equal(record.docs, 0)
+})
+
+test('L0 工具：搜不到时确实落日志，搜得到时不落', async () => {
+  const tools = {}
+  const ctx = { systemPrompt: { section() {} }, tools: { register: (t) => { tools[t.name] = t } }, on() {} }
+  const { dir } = fresh()
+  const plugin = await import('../lib/index.js')
+  plugin.apply(ctx, { dataDir: dir })
+  await tools.memory_write_doc.execute({ title: '有内容的文档', body: '里面有独一无二的关键词：蓝鲸' }, {})
+  const miss = await tools.memory_search.execute({ query: '完全不存在的东西' }, {})
+  assert.equal(miss.ok, false)
+  const file = join(dir, 'L0', 'misses.jsonl')
+  assert.ok(existsSync(file))
+  assert.match(readFileSync(file, 'utf8'), /完全不存在的东西/)
+  const hit = await tools.memory_search.execute({ query: '蓝鲸' }, {})
+  assert.equal(hit.ok, true)
+  assert.equal(readFileSync(file, 'utf8').trim().split('\n').length, 1)
+})
+
 console.log(results.join('\n'))

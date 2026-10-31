@@ -58,6 +58,7 @@ $DSH_HOME/memory/
   L1/bridge.json      上一次对话的尾巴
   L0/index.json       原文索引
   L0/docs/<id>.md     原文正文
+  L0/misses.jsonl     搜不到东西的查询（用来判断要不要上语义检索）
   L2/items.json       权重条目
   L2/archived.jsonl   淡出/撤销的条目
   L3/owner.json       产物卡片开关（{enabled:false} 关掉）
@@ -91,7 +92,7 @@ $DSH_HOME/memory/
 
 ## 已知边界
 
-- **没有语义检索**：L0 是关键词子串匹配，问法和原文用词差太远就搜不到。上 embedding 要引依赖、走网络，手机上不划算。
+- **没有语义检索**：L0 是关键词子串匹配，问法和原文用词差太远就搜不到。这一点是**量出来的**，不是猜的：每次零结果查询都追加到 `L0/misses.jsonl`，`node scripts/misses.mjs` 汇总。如果一个月只有个位数，说明语义检索是伪需求。上 embedding 要引依赖、走网络，手机上不划算。
 - **改代码必须重启引擎**：宿主有 ESM 模块缓存。开发时把入口写成 `file://…?v=2` 递增可以绕过，但只有宿主重新组装配置时才生效。
 - **owner 开关只控制卡片可见性**，不是密码级隔离；真正的按会话隔离要在 agent 作用域注册工具。
 - **没有跨进程锁**：多进程同时写同一份 JSON 会丢更新，单宿主够用。
@@ -103,6 +104,7 @@ $DSH_HOME/memory/
 ```bash
 node test/store.test.mjs        # 35 项，纯函数级，不需要启动 DSH
 node test/integration.mjs      # 起一个一次性 DSH 进程，验证插件真的被激活
+node scripts/misses.mjs        # 汇总"搜不到东西"的查询
 ```
 
 ## License

@@ -58,6 +58,7 @@ $DSH_HOME/memory/
   L1/bridge.json      tail of the previous conversation
   L0/index.json       document index
   L0/docs/<id>.md     document bodies
+  L0/misses.jsonl     searches that returned nothing
   L2/items.json       weighted entries
   L2/archived.jsonl   faded or forgotten entries
   L3/owner.json       artifact card switch ({enabled:false} hides it)
@@ -91,7 +92,7 @@ $DSH_HOME/memory/
 
 ## Known limits
 
-- **No semantic search.** L0 matches substrings; phrasing too far from the original wording will miss. Embeddings mean a dependency and a network hop — a bad trade on a phone.
+- **No semantic search.** L0 matches substrings; phrasing too far from the original wording will miss. This is measured rather than assumed: every zero-result search is appended to `L0/misses.jsonl`, and `node scripts/misses.mjs` summarises it. If a month of misses stays in the single digits, embeddings are a solution without a problem. Embeddings mean a dependency and a network hop — a bad trade on a phone.
 - **Code changes need an engine restart.** The host caches ES modules. During development you can bust it with `file://…?v=2`, but only a recomposition actually reloads.
 - **The owner switch only hides a card**, it is not password-grade isolation. Per-session isolation would mean registering tools in an agent scope.
 - **No cross-process locking.** Two processes writing the same JSON can lose an update; fine for a single host.
@@ -103,6 +104,7 @@ $DSH_HOME/memory/
 ```bash
 node test/store.test.mjs        # 35 tests, pure functions, no DSH needed
 node test/integration.mjs      # boots a throwaway DSH and checks the plugin really activates
+node scripts/misses.mjs        # summarises searches that returned nothing
 ```
 
 ## License
